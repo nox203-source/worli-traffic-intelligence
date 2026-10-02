@@ -1,0 +1,2 @@
+# Worli Traffic Intelligence Center Dependencies
+tzdata>=2024.1

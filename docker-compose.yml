@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  worli-traffic-center:
+    build: .
+    container_name: worli_traffic_intelligence
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5000

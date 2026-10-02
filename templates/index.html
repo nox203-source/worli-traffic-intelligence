@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Worli Traffic Intelligence · Real-Time Decision Support</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="/static/css/styles.css?v=3.0" />
+</head>
+<body>
+  <!-- Modern Sticky Top Navigation Bar -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-logo">
+          <span class="logo-pulse"></span>
+          <span class="logo-icon">◈</span>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">WORLI TRAFFIC</div>
+          <div class="brand-subtitle">Real-Time Intelligence Platform</div>
+        </div>
+      </div>
+
+      <nav class="nav-tabs" aria-label="Primary Navigation">
+        <button class="nav-tab active" data-view="operations">
+          <span class="nav-tab-icon">🗺️</span>
+          <span>Live Map</span>
+        </button>
+        <button class="nav-tab" data-view="blackspots">
+          <span class="nav-tab-icon">⚠️</span>
+          <span>Blackspots</span>
+          <span class="tab-badge danger">6</span>
+        </button>
+        <button class="nav-tab" data-view="cctv">
+          <span class="nav-tab-icon">📹</span>
+          <span>CCTV Feeds</span>
+          <span class="tab-badge">6</span>
+        </button>
+        <button class="nav-tab" data-view="dispatch">
+          <span class="nav-tab-icon">🚔</span>
+          <span>Patrol Units</span>
+          <span class="tab-badge green">3 Ready</span>
+        </button>
+        <button class="nav-tab" data-view="incidents">
+          <span class="nav-tab-icon">📝</span>
+          <span>Incident Desk</span>
+          <span class="tab-badge" id="incidentCountPill">0</span>
+        </button>
+        <button class="nav-tab" data-view="construction">
+          <span class="nav-tab-icon">🚧</span>
+          <span>Work Zones</span>
+          <span class="tab-badge warning" id="constructionCountPill">0</span>
+        </button>
+        <button class="nav-tab" data-view="analytics">
+          <span class="nav-tab-icon">📊</span>
+          <span>Analytics</span>
+        </button>
+      </nav>
+
+      <div class="header-actions">
+        <button type="button" class="btn green-corridor-btn" id="openGreenCorridorBtn" title="Emergency Green Corridor & VIP Convoy Dispatcher">
+          <span class="corridor-pulse-dot"></span>
+          <span>🚨 Green Corridor</span>
+        </button>
+        <div class="forecast-pill">
+          <span class="pill-label">Forecast:</span>
+          <select id="horizonSelect" aria-label="Forecast Horizon">
+            <option value="0" selected>Live Now</option>
+            <option value="15">+15 min</option>
+            <option value="30">+30 min</option>
+            <option value="60">+60 min</option>
+            <option value="90">+90 min</option>
+            <option value="120">+120 min</option>
+          </select>
+        </div>
+        <button class="icon-btn" id="refreshBtn" title="Sync live telemetry">↻</button>
+        <div class="status-indicator">
+          <span class="live-dot"></span>
+          <span id="clockTime">--:--:--</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Web Content Container -->
+  <main class="main-container">
+    <!-- Subtle Modern Status Ribbon -->
+    <div class="status-ribbon" id="contextBar">
+      <div class="ribbon-item active-pulse">
+        <span class="pulse-dot"></span>
+        <strong id="ctxPeriod">Morning Peak Traffic</strong>
+      </div>
+      <span class="ribbon-divider">·</span>
+      <div class="ribbon-item" id="ctxCoastal">Coastal Road: Open Both Arms</div>
+      <span class="ribbon-divider">·</span>
+      <div class="ribbon-item" id="ctxSeaLink">Sea Link: 80 km/h Normal</div>
+      <span class="ribbon-divider">·</span>
+      <div class="ribbon-item" id="ctxTide">Arabian Sea: Mid Tide (2.4m)</div>
+      <span class="ribbon-divider">·</span>
+      <div class="ribbon-item" id="ctxWeather">29°C Clear</div>
+    </div>
+
+    <!-- ================= VIEW 1: LIVE MAP OPERATIONS ================= -->
+    <section class="view active" id="view-operations">
+      <!-- Modern KPI Cards Row -->
+      <div class="kpi-row">
+        <div class="kpi-card" id="kpiDensityCard">
+          <div class="kpi-meta">
+            <span class="kpi-title">Network Density</span>
+            <span class="kpi-tag" id="kpiDensityBadge">--</span>
+          </div>
+          <div class="kpi-number"><span id="kpiDensity">--</span><small>%</small></div>
+          <div class="kpi-track"><div class="kpi-fill" id="kpiDensityBar"></div></div>
+          <div class="kpi-caption" id="kpiDensityFoot">Prediction: Live Now</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-meta">
+            <span class="kpi-title">Average Speed</span>
+            <span class="kpi-tag neutral">8 Corridors</span>
+          </div>
+          <div class="kpi-number"><span id="kpiSpeed">--</span><small> km/h</small></div>
+          <div class="kpi-caption">Free-flow calibrated benchmark</div>
+        </div>
+
+        <div class="kpi-card danger-card">
+          <div class="kpi-meta">
+            <span class="kpi-title">Accident Blackspots</span>
+            <span class="kpi-tag danger">High Alert</span>
+          </div>
+          <div class="kpi-number">6<small> Danger Zones</small></div>
+          <div class="kpi-caption">Active radar & speed trap monitoring</div>
+        </div>
+
+        <div class="kpi-card" id="jumpIncident" role="button" tabindex="0" title="Click to open Incident Desk" style="cursor: pointer;">
+          <div class="kpi-meta">
+            <span class="kpi-title">Active Incidents</span>
+            <span class="kpi-tag warning">Field Desk ↗</span>
+          </div>
+          <div class="kpi-number" id="kpiIncidents">--</div>
+          <div class="kpi-caption">Verified GPS positions</div>
+        </div>
+      </div>
+
+      <!-- Modern Expansive Map Hero -->
+      <div class="map-card">
+        <!-- Floating Glass Top Bar Inside Map -->
+        <div class="map-floating-bar">
+          <!-- Traffic Display Mode Segmented Control -->
+          <div class="glass-pill-group" role="radiogroup" aria-label="Traffic Display Mode">
+            <button type="button" class="glass-pill mode-pill active" data-mode="full" title="Display all 8 road corridors and junction circle hubs">
+              🛣️ All Corridors & Hubs
+            </button>
+            <button type="button" class="glass-pill mode-pill" data-mode="bubbles" title="Display clean junction circle hubs only">
+              🔘 Circle Hubs Only
+            </button>
+            <button type="button" class="glass-pill mode-pill" data-mode="focus" title="Corridor lines only draw when you click on a road">
+              ⚡ Focus on Click
+            </button>
+          </div>
+
+          <!-- Quick Search Bar -->
+          <div class="glass-search">
+            <span class="search-symbol">🔍</span>
+            <input type="text" id="mapSearchInput" placeholder="Search junction, blackspot, road or camera..." autocomplete="off" />
+            <button type="button" class="clear-search-btn" id="clearSearchBtn">✕</button>
+            <div class="search-dropdown" id="searchDropdown"></div>
+          </div>
+
+          <!-- Basemap Style Switcher -->
+          <div class="glass-pill-group" role="radiogroup" aria-label="Basemap Style">
+            <button type="button" class="glass-pill style-pill active" data-style="voyager">🌿 Natural</button>
+            <button type="button" class="glass-pill style-pill" data-style="dark">🌙 Dark</button>
+            <button type="button" class="glass-pill style-pill" data-style="satellite">🛰️ Satellite</button>
+            <button type="button" class="glass-pill style-pill" data-style="osm">🗺️ Street</button>
+          </div>
+        </div>
+
+        <!-- Filter Presets Bar -->
+        <div class="map-quick-filters">
+          <div class="sector-chips">
+            <span class="chip-label">Sectors:</span>
+            <button type="button" class="filter-chip preset-chip" data-preset="all">Worli Overview</button>
+            <button type="button" class="filter-chip preset-chip" data-preset="seaface">Sea Face</button>
+            <button type="button" class="filter-chip preset-chip" data-preset="sealink">Sea Link</button>
+            <button type="button" class="filter-chip preset-chip" data-preset="naka">Worli Naka</button>
+            <button type="button" class="filter-chip preset-chip" data-preset="coastal">Coastal Road</button>
+            <button type="button" class="filter-chip preset-chip" data-preset="prabhadevi">Prabhadevi</button>
+          </div>
+
+          <div class="layer-checkboxes">
+            <label class="layer-toggle"><input type="checkbox" id="layerHubs" checked /><span>Circle Hubs 🔘</span></label>
+            <label class="layer-toggle"><input type="checkbox" id="layerCorridors" checked /><span>Corridors 🛣️</span></label>
+            <label class="layer-toggle"><input type="checkbox" id="layerBlackspots" checked /><span>Blackspots ⚠️</span></label>
+            <label class="layer-toggle"><input type="checkbox" id="layerCameras" checked /><span>CCTV 📹</span></label>
+            <label class="layer-toggle"><input type="checkbox" id="layerVMS" checked /><span>VMS 🖵</span></label>
+            <label class="layer-toggle"><input type="checkbox" id="layerPatrols" checked /><span>Patrols 🚔</span></label>
+            <label class="layer-toggle"><input type="checkbox" id="layerEvents" checked /><span>Events</span></label>
+          </div>
+        </div>
+
+        <!-- Map Container -->
+        <div class="map-frame">
+          <div id="map"></div>
+
+          <!-- Floating Modern Corridor Inspector Card -->
+          <div id="corridorInspector" class="floating-inspector-card">
+            <div class="insp-header">
+              <div>
+                <span class="inspector-badge" id="inspLevel">Moderate</span>
+                <h4 id="inspName">Worli Sea Face</h4>
+              </div>
+              <button type="button" class="close-icon-btn" id="closeInspectorBtn">✕</button>
+            </div>
+            <div class="insp-sub" id="inspDesc">Khan Abdul Gaffar Khan Marg along Arabian Sea coastline</div>
+            <div class="insp-grid">
+              <div class="insp-box"><span>Density</span><strong id="inspDensity">52%</strong></div>
+              <div class="insp-box"><span>Live Speed</span><strong id="inspSpeed">34 km/h</strong></div>
+              <div class="insp-box"><span>Speed Limit</span><strong id="inspLimit">50 km/h</strong></div>
+              <div class="insp-box"><span>Est. Travel</span><strong id="inspTravel">5.8 min</strong></div>
+              <div class="insp-box"><span>Delay</span><strong id="inspDelay">+2 min</strong></div>
+              <div class="insp-box"><span>Length</span><strong id="inspLength">2.8 km</strong></div>
+            </div>
+            <div class="insp-lanes-info" id="inspLanes">Lanes: 4 active</div>
+            <div class="insp-btn-row">
+              <button type="button" class="btn primary small" id="inspDispatchBtn">🚔 Dispatch Patrol</button>
+              <button type="button" class="btn secondary small" id="inspViewCamBtn">📹 View CCTV</button>
+            </div>
+          </div>
+
+          <!-- Location Picker Notice -->
+          <div id="pickBanner" class="pick-location-pill">
+            <span class="pulse-icon">✛</span>
+            <span>Click map to set exact coordinates</span>
+            <button type="button" class="btn ghost small" id="cancelPickBtn">Cancel</button>
+          </div>
+
+          <!-- Floating Tactical Green Corridor Active HUD -->
+          <div id="greenCorridorHud" class="green-corridor-hud">
+            <div class="gc-hud-left">
+              <span class="gc-live-beacon"></span>
+              <div class="gc-hud-info">
+                <div class="gc-hud-tag">EMERGENCY GREEN CORRIDOR · ACTIVE</div>
+                <div class="gc-hud-route" id="gcHudRoute">Podar Hospital ➔ Sea Link Toll</div>
+              </div>
+            </div>
+            <div class="gc-hud-stats">
+              <div class="gc-stat-box">
+                <span class="gc-stat-label">REMAINING ETA</span>
+                <strong class="gc-stat-val emerald-text" id="gcHudEta">--:--</strong>
+              </div>
+              <div class="gc-stat-box">
+                <span class="gc-stat-label">SPEED TARGET</span>
+                <strong class="gc-stat-val" id="gcHudSpeed">65 km/h</strong>
+              </div>
+              <div class="gc-stat-box">
+                <span class="gc-stat-label">SCADA SIGNALS</span>
+                <strong class="gc-stat-val green-text" id="gcHudSignals">5/5 GREEN</strong>
+              </div>
+              <div class="gc-stat-box">
+                <span class="gc-stat-label">ESCORT UNIT</span>
+                <strong class="gc-stat-val" id="gcHudEscort">PATROL-01</strong>
+              </div>
+            </div>
+            <button type="button" class="btn small danger gc-standdown-btn" id="deactivateGreenCorridorBtn">🛑 Stand Down</button>
+          </div>
+
+          <!-- Minimalist Coordinates & Recenter HUD -->
+          <div class="map-bottom-hud">
+            <span class="hud-coords" id="hudCoords">19.006500, 72.818500</span>
+            <span class="hud-sep">·</span>
+            <span class="hud-zoom">Zoom <b id="hudZoom">14</b></span>
+            <span class="hud-sep">·</span>
+            <span class="hud-mode" id="hudMode">All Corridors & Hubs</span>
+            <button type="button" class="recenter-link" id="hudResetBtn">⌖ Recenter</button>
+          </div>
+        </div>
+
+        <!-- Overhead Digital Highway VMS Banner -->
+        <div class="vms-modern-strip" id="vmsPreviewBox">
+          <div class="vms-badge">
+            <span class="vms-live-dot"></span>
+            <span>HIGHWAY DIGITAL VMS</span>
+          </div>
+          <div class="vms-marquee" id="vmsLedText">SEA LINK TO BANDRA: 7 MINS · FREE FLOW · MAINTAIN LANE DISCIPLINE</div>
+        </div>
+      </div>
+
+      <!-- Monitored Corridors Performance Strip -->
+      <div class="section-title-wrap">
+        <div>
+          <h3 class="section-heading">Monitored Corridor Network</h3>
+          <p class="section-subtext">Click any card to smoothly view its real geometry and focus the map</p>
+        </div>
+      </div>
+      <div class="corridors-grid" id="zoneStrip"></div>
+    </section>
+
+    <!-- ================= VIEW 2: ACCIDENT BLACKSPOTS ================= -->
+    <section class="view" id="view-blackspots">
+      <div class="view-header">
+        <div>
+          <span class="view-eyebrow">ROAD SAFETY INTELLIGENCE</span>
+          <h2 class="view-title">Accident Prone Blackspots & Danger Zones</h2>
+          <p class="view-description">High-risk accident clusters identified from Mumbai Traffic Police collision records with active mitigation measures.</p>
+        </div>
+        <div class="header-badges">
+          <span class="modern-badge danger"><strong>6</strong> Active Blackspots</span>
+          <span class="modern-badge warning"><strong>49</strong> Collisions YTD</span>
+          <span class="modern-badge green"><strong>100%</strong> Radar Monitored</span>
+        </div>
+      </div>
+
+      <div class="blackspots-container" id="blackspotGrid"></div>
+    </section>
+
+    <!-- ================= VIEW 3: CCTV VIDEO WALL ================= -->
+    <section class="view" id="view-cctv">
+      <div class="view-header">
+        <div>
+          <span class="view-eyebrow">OPTICAL & ANPR SURVEILLANCE</span>
+          <h2 class="view-title">Live CCTV Surveillance Video Wall</h2>
+          <p class="view-description">Real-time optical feeds with live vehicle tracking and automated ANPR plate recognition.</p>
+        </div>
+        <div class="header-badges">
+          <span class="modern-badge green">🟢 6 Feeds Online · 30 FPS</span>
+        </div>
+      </div>
+
+      <div class="cctv-grid" id="cctvWallGrid"></div>
+    </section>
+
+    <!-- ================= VIEW 4: PATROL DISPATCH ================= -->
+    <section class="view" id="view-dispatch">
+      <div class="view-header">
+        <div>
+          <span class="view-eyebrow">EMERGENCY RESPONSE</span>
+          <h2 class="view-title">Patrol Units & Field Deployment</h2>
+          <p class="view-description">Real-time location of interceptors, motorcycle QRT units, and heavy recovery cranes.</p>
+        </div>
+      </div>
+
+      <div class="two-col-layout">
+        <div class="modern-card">
+          <h3 class="card-heading">Active Patrol Fleet</h3>
+          <div class="patrol-list" id="patrolList"></div>
+        </div>
+
+        <div class="modern-card">
+          <h3 class="card-heading">Rapid Dispatch Command</h3>
+          <form id="dispatchForm" class="modern-form">
+            <div class="form-group">
+              <label>Select Patrol Unit</label>
+              <select name="unit_id" id="dispatchUnitSelect" required></select>
+            </div>
+            <div class="form-group">
+              <label>Target Sector / Corridor</label>
+              <select name="target" id="dispatchTargetSelect" required></select>
+            </div>
+            <div class="form-group">
+              <label>Dispatch Reason</label>
+              <select name="priority">
+                <option value="routine">Routine Patrol</option>
+                <option value="traffic_slowdown" selected>Traffic Jam Clearing</option>
+                <option value="accident">Accident Response (Code Red)</option>
+                <option value="vip">VIP Escort</option>
+              </select>
+            </div>
+            <button class="btn primary" type="submit">🚨 Deploy Unit Immediately</button>
+            <div class="form-msg" id="dispatchMessage"></div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 5: INCIDENT DESK ================= -->
+    <section class="view" id="view-incidents">
+      <div class="view-header">
+        <div>
+          <span class="view-eyebrow">FIELD REPORTING</span>
+          <h2 class="view-title">Incident Management & Dispatch Desk</h2>
+        </div>
+      </div>
+
+      <div class="two-col-layout">
+        <div class="modern-card">
+          <h3 class="card-heading">Report New Incident</h3>
+          <form id="incidentForm" class="modern-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Incident Type</label>
+                <select name="incident_type" required>
+                  <option>Accident</option>
+                  <option selected>Stalled Vehicle</option>
+                  <option>Signal Failure</option>
+                  <option>Road Obstruction</option>
+                  <option>Waterlogging</option>
+                  <option>VIP Movement</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Severity Impact</label>
+                <select name="severity" required>
+                  <option value="low">Low (+4% density)</option>
+                  <option value="medium" selected>Medium (+10% density)</option>
+                  <option value="high">High (+20% density)</option>
+                  <option value="critical">Critical (+32% density)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Corridor Zone</label>
+                <select name="zone" id="incidentZone" required></select>
+              </div>
+              <div class="form-group">
+                <label>Specific Lane</label>
+                <select name="lane" id="incidentLane" required></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Description & Notes</label>
+              <textarea name="description" rows="2" placeholder="Vehicle details, lane blockage notes..." required></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Latitude</label>
+                <input name="lat" id="incidentLat" type="number" step="any" placeholder="18.998600" required />
+              </div>
+              <div class="form-group">
+                <label>Longitude</label>
+                <input name="lon" id="incidentLon" type="number" step="any" placeholder="72.817400" required />
+              </div>
+            </div>
+            <div class="snap-buttons-row">
+              <button type="button" class="btn secondary small pick-map" data-target="incident">✛ Pick on Map</button>
+              <button type="button" class="snap-pill" data-target="incident" data-lat="18.9986" data-lon="72.8174">Worli Naka</button>
+              <button type="button" class="snap-pill" data-target="incident" data-lat="19.0068" data-lon="72.8130">Sea Face</button>
+              <button type="button" class="snap-pill" data-target="incident" data-lat="19.0140" data-lon="72.8155">Sea Link</button>
+            </div>
+            <button class="btn primary" type="submit">Publish Incident Alert</button>
+            <div class="form-msg" id="incidentMessage"></div>
+          </form>
+        </div>
+
+        <div class="modern-card">
+          <h3 class="card-heading">Pinpoint Location</h3>
+          <div id="incidentMap" class="mini-map"></div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-header">
+          <h3 class="card-heading">Active Incidents Registry</h3>
+          <a class="btn secondary small" href="/api/export/events.csv">📥 Export CSV</a>
+        </div>
+        <div class="table-wrap">
+          <table id="incidentTable">
+            <thead><tr><th>ID</th><th>Status</th><th>Type</th><th>Severity</th><th>Zone</th><th>Lane</th><th>Coordinates</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 6: WORK ZONES ================= -->
+    <section class="view" id="view-construction">
+      <div class="view-header">
+        <div>
+          <span class="view-eyebrow">INFRASTRUCTURE</span>
+          <h2 class="view-title">Active Construction & Work Zones</h2>
+        </div>
+      </div>
+
+      <div class="two-col-layout">
+        <div class="modern-card">
+          <h3 class="card-heading">Publish Road Work Zone</h3>
+          <form id="constructionForm" class="modern-form">
+            <div class="form-group">
+              <label>Project Title</label>
+              <input name="title" placeholder="e.g. BMC Stormwater Pipe Repair" required />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Zone</label>
+                <select name="zone" id="constructionZone" required></select>
+              </div>
+              <div class="form-group">
+                <label>Lane Affected</label>
+                <select name="lane" id="constructionLane" required></select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Start Window</label>
+                <input name="start_time" type="datetime-local" required />
+              </div>
+              <div class="form-group">
+                <label>Expected End</label>
+                <input name="end_time" type="datetime-local" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Diversion / Traffic Advisory</label>
+              <textarea name="description" rows="2" placeholder="Barricades, bypass routing..." required></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Latitude</label>
+                <input name="lat" id="constructionLat" type="number" step="any" placeholder="19.015200" required />
+              </div>
+              <div class="form-group">
+                <label>Longitude</label>
+                <input name="lon" id="constructionLon" type="number" step="any" placeholder="72.825000" required />
+              </div>
+            </div>
+            <div class="snap-buttons-row">
+              <button type="button" class="btn secondary small pick-map" data-target="construction">✛ Pick on Map</button>
+              <button type="button" class="snap-pill" data-target="construction" data-lat="19.0152" data-lon="72.8250">Prabhadevi</button>
+              <button type="button" class="snap-pill" data-target="construction" data-lat="18.9986" data-lon="72.8174">Worli Naka</button>
+            </div>
+            <button class="btn primary" type="submit">Publish Work Zone</button>
+            <div class="form-msg" id="constructionMessage"></div>
+          </form>
+        </div>
+
+        <div class="modern-card">
+          <h3 class="card-heading">Work Zone Verification Map</h3>
+          <div id="constructionMap" class="mini-map"></div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <h3 class="card-heading">Work Zones Log</h3>
+        <div class="table-wrap">
+          <table id="constructionTable">
+            <thead><tr><th>ID</th><th>Status</th><th>Project Title</th><th>Impact</th><th>Zone</th><th>Lane</th><th>Active Window</th><th>Coordinates</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 7: ANALYTICS ================= -->
+    <section class="view" id="view-analytics">
+      <div class="view-header">
+        <div>
+          <span class="view-eyebrow">METRICS & TRAJECTORY</span>
+          <h2 class="view-title">Traffic Analytics & Congestion Matrix</h2>
+        </div>
+      </div>
+
+      <div class="two-col-layout">
+        <div class="modern-card">
+          <h3 class="card-heading">Corridor Density Distribution</h3>
+          <div class="chart-container"><canvas id="densityChart"></canvas></div>
+        </div>
+        <div class="modern-card">
+          <h3 class="card-heading">Incident & Work Load</h3>
+          <div class="chart-container"><canvas id="eventChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <h3 class="card-heading">Network Performance Matrix</h3>
+        <div class="table-wrap">
+          <table id="analyticsTable">
+            <thead><tr><th>Corridor</th><th>Length</th><th>Density</th><th>Level</th><th>Avg Speed</th><th>Limit</th><th>Delay</th><th>Traversal</th><th>Active Events</th><th>Confidence</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= LUXURIOUS MODERN BLACKSPOT (BLK) MODAL ================= -->
+  <div id="blackspotModal" class="modern-modal-backdrop">
+    <div class="modern-modal-card">
+      <div class="modal-top">
+        <div class="modal-badge-row">
+          <span class="pill-badge danger" id="bsModalRisk">CRITICAL DANGER ZONE</span>
+          <span class="pill-badge neutral" id="bsModalId">BLK-01</span>
+        </div>
+        <button type="button" class="close-modal-btn" id="closeBsModal" title="Close">✕</button>
+      </div>
+
+      <h3 class="modal-title" id="bsModalTitle">Worli Naka Central Multi-Way Junction</h3>
+
+      <div class="modal-metrics-grid">
+        <div class="metric-card">
+          <span class="metric-label">Reported Collisions</span>
+          <strong class="metric-val danger-text" id="bsModalCount">14 Incidents</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Speed Limit</span>
+          <strong class="metric-val" id="bsModalLimit">35 km/h</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Enforcement</span>
+          <strong class="metric-val green-text">Active ANPR</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Mitigation Status</span>
+          <strong class="metric-val amber-text">High Priority</strong>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="section-label">Key Contributing Hazard Factors</div>
+        <ul id="bsModalFactors" class="modern-tag-list"></ul>
+      </div>
+
+      <div class="modal-advisory-box">
+        <div class="advisory-title">🛡️ Police Operational Advisory</div>
+        <p id="bsModalAdvisory"></p>
+      </div>
+
+      <div class="modal-actions-row">
+        <button type="button" class="btn primary" id="bsDispatchBtn">🚨 Dispatch Patrol Interceptor</button>
+        <button type="button" class="btn secondary" id="bsFocusMapBtn">⌖ Locate Zone on Map</button>
+        <button type="button" class="btn ghost" id="bsCloseModalBtn">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CCTV STREAMING MODAL ================= -->
+  <div id="cctvModal" class="modern-modal-backdrop">
+    <div class="modern-modal-card cctv-modal-card">
+      <div class="modal-top">
+        <div class="modal-badge-row">
+          <span class="live-pill"><span class="red-dot"></span> LIVE 4K ANPR FEED</span>
+        </div>
+        <button type="button" class="close-modal-btn" id="closeCctvModal">✕</button>
+      </div>
+      <h3 class="modal-title" id="modalCamTitle">Worli Naka Circle Hub (PTZ 4K)</h3>
+      <div class="cctv-canvas-frame">
+        <canvas id="cctvCanvas" width="640" height="360"></canvas>
+        <div class="cctv-hud-top">
+          <span id="cctvOsdId">CAM-W01</span>
+          <span id="cctvOsdTime">2026-10-01 11:00:00 IST</span>
+          <span>FPS: 30.0</span>
+        </div>
+        <div class="cctv-hud-bottom">
+          <span id="cctvOsdZone">SECTOR: WORLI NAKA HUB</span>
+          <span id="cctvOsdSpeed">AI VEHICLE DETECTION: ACTIVE</span>
+        </div>
+      </div>
+      <div class="cctv-info-bar">
+        <span>Resolution: <b id="modalCamRes">3840x2160</b></span>
+        <span>ANPR: <b class="green-text">ENABLED</b></span>
+        <span>Traffic Flow: <b id="modalCamCount">148 veh/min</b></span>
+        <span>Violations: <b class="danger-text" id="modalCamViolations">12 Today</b></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= EMERGENCY GREEN CORRIDOR & VIP CONVOY MODAL ================= -->
+  <div id="greenCorridorModal" class="modern-modal-backdrop">
+    <div class="modern-modal-card green-corridor-modal-card">
+      <div class="modal-top">
+        <div class="modal-badge-row">
+          <span class="pill-badge emerald"><span class="pulse-emerald-dot"></span> SCADA GREEN-WAVE PROTOCOL</span>
+          <span class="pill-badge neutral">MUMBAI POLICE C4i</span>
+        </div>
+        <button type="button" class="close-modal-btn" id="closeGreenCorridorModal" title="Close">✕</button>
+      </div>
+
+      <h3 class="modal-title">🚨 Emergency Green Corridor &amp; VIP Dispatcher</h3>
+      <p class="modal-subtitle">Instant automated green-wave traffic signal preemption for critical organ transport, trauma EMS, or VIP convoys across Worli.</p>
+
+      <form id="greenCorridorForm" class="gc-form">
+        <div class="gc-grid-2">
+          <div class="field-wrap">
+            <label for="gcMissionType">Mission Category</label>
+            <select id="gcMissionType" required>
+              <option value="Critical Cardiac / Organ Transport">🚑 Critical Cardiac / Organ Transport (Priority 1)</option>
+              <option value="Emergency Medical Trauma Unit">🚨 Emergency Medical Trauma Evacuation (Priority 1)</option>
+              <option value="VIP Head of State Motorcade">🚓 VIP / Head of State Motorcade (Priority 2)</option>
+            </select>
+          </div>
+          <div class="field-wrap">
+            <label for="gcCallsign">Vehicle / Ambulance Callsign</label>
+            <input type="text" id="gcCallsign" value="EMS-AMB-09" placeholder="e.g. EMS-AMB-09" required />
+          </div>
+        </div>
+
+        <div class="gc-grid-2">
+          <div class="field-wrap">
+            <label for="gcOrigin">Origin Hospital / Landmark</label>
+            <select id="gcOrigin" required>
+              <option value="Podar Hospital &amp; SASMIRA" selected>Podar Hospital &amp; SASMIRA (Worli Central)</option>
+              <option value="Worli Naka Hub">Worli Naka Hub (Central Junction)</option>
+              <option value="Haji Ali Gateway">Haji Ali Gateway (Southern Approach)</option>
+              <option value="Nehru Planetarium &amp; Centre">Nehru Planetarium &amp; Centre (Dr Annie Besant)</option>
+              <option value="Bindumadhav Thackeray Chowk">Bindumadhav Thackeray Chowk (Sea Face South)</option>
+            </select>
+          </div>
+          <div class="field-wrap">
+            <label for="gcDestination">Destination Exit / Corridor</label>
+            <select id="gcDestination" required>
+              <option value="Bandra-Worli Sea Link Toll" selected>Bandra-Worli Sea Link Toll (Northbound to Lilavati)</option>
+              <option value="Coastal Road Interchange Portal">Coastal Road Interchange Portal (Southbound to Saifee)</option>
+              <option value="Century Bazaar / SASMIRA Chowk">Century Bazaar / SASMIRA Chowk (Prabhadevi)</option>
+              <option value="Siddhivinayak Temple">Siddhivinayak Temple / Prabhadevi</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="gc-grid-2">
+          <div class="field-wrap">
+            <label for="gcEscort">Assigned Interceptor Escort</label>
+            <select id="gcEscort" required>
+              <option value="PATROL-01" selected>PATROL-01 · Worli Interceptor Alpha (Sea Face)</option>
+              <option value="PATROL-02">PATROL-02 · Naka Traffic Bike Bravo (Worli Naka)</option>
+              <option value="PATROL-03">PATROL-03 · Heavy Recovery Crane Charlie (Sea Link)</option>
+            </select>
+          </div>
+          <div class="field-wrap">
+            <label for="gcSpeed">Target Convoy Speed: <b id="gcSpeedVal" class="emerald-text">65 km/h</b></label>
+            <input type="range" id="gcSpeed" min="45" max="85" step="5" value="65" />
+          </div>
+        </div>
+
+        <!-- Real-Time SCADA Preemption Calculation Card -->
+        <div class="gc-preview-box">
+          <div class="gc-preview-header">
+            <div>
+              <span class="gc-preview-title" id="gcPreviewRoute">Annie Besant Rd ➔ Worli Sea Face ➔ Sea Link Express</span>
+              <div class="gc-preview-sub" id="gcPreviewDist">Distance: 4.5 km · SCADA Preemption: 5 Signals</div>
+            </div>
+            <div class="gc-time-badge">
+              <span class="gc-time-old" id="gcPreviewOldTime">~14.2m Normal</span>
+              <span class="gc-time-new emerald-text" id="gcPreviewNewTime">⚡ 3.9m Express</span>
+              <span class="gc-saved-pill" id="gcPreviewSaved">Saves ~10.3 mins</span>
+            </div>
+          </div>
+
+          <div class="gc-signals-strip">
+            <div class="gc-signals-label">COORDINATED SCADA GREEN WAVE SIGNALS:</div>
+            <div class="gc-signals-list" id="gcSignalsList">
+              <div class="gc-sig-item"><span class="sig-dot green"></span><span>Podar Hospital Gate</span></div>
+              <div class="gc-sig-item"><span class="sig-dot green"></span><span>Lotus Junction</span></div>
+              <div class="gc-sig-item"><span class="sig-dot green"></span><span>Worli Dairy Gap</span></div>
+              <div class="gc-sig-item"><span class="sig-dot green"></span><span>Sea Face North</span></div>
+              <div class="gc-sig-item"><span class="sig-dot green"></span><span>Sea Link Toll Portal</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-actions-row">
+          <button type="submit" class="btn primary-emerald gc-activate-btn">
+            <span class="btn-flash"></span>
+            <span>⚡ ACTIVATE GREEN-WAVE CORRIDOR</span>
+          </button>
+          <button type="button" class="btn ghost" id="cancelGreenCorridorBtn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="modern-toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="/static/js/app.js?v=3.0"></script>
+</body>
+</html>

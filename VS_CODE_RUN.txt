@@ -1,0 +1,21 @@
+WORLI TRAFFIC INTELLIGENCE CENTER - VS CODE RUN STEPS
+
+1. Extract the ZIP.
+2. Open the folder Worli_Traffic_Intelligence in VS Code.
+3. Open Terminal > New Terminal.
+4. Run:
+
+   python server.py
+
+   If 'python' does not work, use:
+
+   py server.py
+
+5. Open this in Chrome/Edge:
+
+   http://127.0.0.1:5000
+
+No pip install is required. The backend uses only Python's standard library.
+The map and chart libraries are loaded from the internet, so keep internet on.
+
+You can also double-click start_windows.bat.
